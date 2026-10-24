@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Сканер QR — проверка</title>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+            background: #f4f6f9;
+        }
+
+        h1 {
+            color: #222;
+        }
+
+        #videoContainer {
+            width: 100%;
+            max-width: 500px;
+            margin: 20px auto;
+            overflow: hidden;
+            border-radius: 12px;
+        }
+
+        canvas {
+            width: 100%;
+            height: auto;
+            border-radius: 12px;
+        }
+
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 10px;
+            overflow-wrap: anywhere;
+        }
+
+        button {
+            padding: 12px 20px;
+            margin: 8px;
+            border: none;
+            border-radius: 8px;
+            background: #1677ff;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        button:disabled {
+            background: #999;
+        }
+
+        #status {
+            color: #555;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Сканер QR — проверка</h1>
+
+    <p id="status">Нажмите кнопку для запуска камеры</p>
+
+    <button id="startButton">Запустить сканер</button>
+    <button id="stopButton" disabled>Остановить камеру</button>
+
+    <div id="videoContainer">
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <div id="result">
+        <h3>Результат сканирования</h3>
+        <p id="qrData">QR-код ещё не найден</p>
+    </div>
+
+    <button id="resetButton">Сбросить результат</button>
+
+    <script>
+        const video = document.createElement("video");
+
+        const canvas = document.getElementById("canvas");
+        const context = canvas.getContext("2d");
+
+        const status = document.getElementById("status");
+        const qrData = document.getElementById("qrData");
+
+        let stream = null;
+        let scanning = false;
+        let lastCode = "";
+
+        // Запуск камеры
+        async function startScanner() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: "environment"
+                    },
+                    audio: false
+                });
+
+                video.srcObject = stream;
+                video.setAttribute("playsinline", true);
+
+                await video.play();
+
+                scanning = true;
+
+                $("#startButton").prop("disabled", true);
+                $("#stopButton").prop("disabled", false);
+
+                status.textContent = "Наведите камеру на QR-код";
+
+                requestAnimationFrame(scanQR);
+
+            } catch (error) {
+                status.textContent =
+                    "Ошибка камеры: " + error.message;
+            }
+        }
+
+        // Поиск QR-кода
+        function scanQR() {
+            if (!scanning) return;
+
+            if (
+                video.readyState === video.HAVE_ENOUGH_DATA
+            ) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+
+                context.drawImage(
+                    video,
+                    0,
+                    0,
+                    canvas.width,
+                    canvas.height
+                );
+
+                const imageData = context.getImageData(
+                    0,
+                    0,
+                    canvas.width,
+                    canvas.height
+                );
+                const code = jsQR(
+                    imageData.data,
+                    imageData.width,
+                    imageData.height,
+                    {
+                        inversionAttempts: "dontInvert"
+                    }
+                );
+
+                if (code) {
+                    // Рисуем рамку вокруг QR-кода
+                    drawLine(
+                        code.location.topLeftCorner,
+                        code.location.topRightCorner
+                    );
+
+                    drawLine(
+                        code.location.topRightCorner,
+                        code.location.bottomRightCorner
+                    );
+
+                    drawLine(
+                        code.location.bottomRightCorner,
+                        code.location.bottomLeftCorner
+                    );
+
+                    drawLine(
+                        code.location.bottomLeftCorner,
+                        code.location.topLeftCorner
+                    );
+
+                    // Не обрабатываем один код повторно
+                    if (code.data !== lastCode) {
+                        lastCode = code.data;
+
+                        qrData.textContent = code.data;
+
+                        status.textContent =
+                            "QR-код успешно считан";
+
+                        // Здесь можно добавить AJAX-запрос
+                        // к серверу, если он понадобится.
+                    }
+                }
+            }
+
+            requestAnimationFrame(scanQR);
+        }
+
+        // Рисование линии рамки
+        function drawLine(begin, end) {
+            context.beginPath();
+
+            context.moveTo(begin.x, begin.y);
+            context.lineTo(end.x, end.y);
+
+            context.lineWidth = 5;
+            context.strokeStyle = "#ff3b58";
+
+            context.stroke();
+        }
+
+        // Остановка камеры
+        function stopScanner() {
+            scanning = false;
+
+            if (stream) {
+                stream.getTracks().forEach(track => {
+                    track.stop();
+                });
+
+                stream = null;
+            }
+
+            video.srcObject = null;
+
+            $("#startButton").prop("disabled", false);
+            $("#stopButton").prop("disabled", true);
+
+            status.textContent = "Камера остановлена";
+        }
+
+        // Сброс результата
+        $("#resetButton").on("click", function () {
+            lastCode = "";
+
+            qrData.textContent = "QR-код ещё не найден";
+            status.textContent = "Ожидание QR-кода";
+        });
+
+        $("#startButton").on("click", startScanner);
+        $("#stopButton").on("click", stopScanner);
+    </script>
+
+</body>
+</html>
