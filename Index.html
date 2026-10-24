@@ -179,6 +179,17 @@
       (_, index) => `T-${String(index + 1).padStart(6, "0")}`
     );
 
+
+    if (!navigator.bluetooth) {
+    alert("Web Bluetooth не поддерживается в Telegram Mini App. Открой страницу в Chrome.");
+    return;
+}
+
+if (!navigator.bluetooth.requestDevice) {
+    alert("Bluetooth API недоступен");
+    return;
+}
+    
     try {
       await sendZplLabels(product, ids);
       alert(`Отправлено этикеток: ${quantity}`);
