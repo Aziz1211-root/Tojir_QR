@@ -149,28 +149,45 @@
     tg.ready();
     tg.expand();
 
-    document.getElementById("productForm").addEventListener("submit", function(event) {
-      event.preventDefault();
+    document
+  .getElementById("productForm")
+  .addEventListener("submit", async function (event) {
+    event.preventDefault();
 
-      const product = document.getElementById("product").value.trim();
-      const quantity = Number(document.getElementById("quantity").value);
+    console.log("Submit перехвачен");
 
-      /*const orderData = {
-        product: product,
-        quantity: quantity
-      };*/
+    const product = document
+      .getElementById("product")
+      .value
+      .trim();
 
-const ids = Array.from(
-  { length: quantity },
-  (_, index) => `T-${String(index + 1).padStart(6, '0')}`
-);
+    const quantity = Number(
+      document.getElementById("quantity").value
+    );
 
-sendZplLabels(product, ids);
+    if (
+      !product ||
+      !Number.isInteger(quantity) ||
+      quantity < 1
+    ) {
+      alert("Введите товар и корректное количество");
+      return;
+    }
 
+    const ids = Array.from(
+      { length: quantity },
+      (_, index) => `T-${String(index + 1).padStart(6, "0")}`
+    );
 
-      /*tg.sendData(JSON.stringify(orderData));*/
-      //tg.close();
-    });
+    try {
+      await sendZplLabels(product, ids);
+      alert(`Отправлено этикеток: ${quantity}`);
+    } catch (error) {
+      console.error("Ошибка печати:", error);
+      alert("Не удалось отправить этикетки на принтер");
+    }
+  });
+
 
 
 
